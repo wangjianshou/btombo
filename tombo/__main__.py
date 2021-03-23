@@ -23,6 +23,10 @@ def main(args=None):
         ('resquiggle',
          'Re-annotate raw signal with genomic alignment from ' +
          'existing basecalls.', _option_parsers.get_resquiggle_parser()),]
+    pipeline_help = [
+        ('pipeline',
+         'Pipeline for all steps ',
+          _option_parsers.get_pipeline_parser()),]
     nested_commands = [
         ('preprocess', 'Pre-process nanopore reads for Tombo processing.', [
             ('annotate_raw_with_fastqs','Add basecalled sequence ' +
@@ -150,7 +154,7 @@ def main(args=None):
     desc = ('Tombo command groups (additional help available ' +
             'within each command group):\n' + '\n'.join([
                 '\t{0: <25}{1}'.format(grp_name, grp_help)
-                for grp_name, grp_help, _ in rsqgl_help + nested_commands +
+                for grp_name, grp_help, _ in rsqgl_help +pipeline_help+ nested_commands +
                 [plot_commands,]]))
     parser = argparse.ArgumentParser(
         prog='tombo',
@@ -173,6 +177,11 @@ def main(args=None):
         add_help=False)
     # resquiggle is both the service parser and action parser
     rsqgl_parser.set_defaults(action_command=rsqgl_help[0][0])
+
+    pipeline_parser = service_subparsers.add_parser(
+        pipeline_help[0][0], parents=[pipeline_help[0][2],],
+        add_help=False)
+    pipeline_parser.set_defaults(action_command=pipeline_help[0][0])
 
     for grp_name, grp_help, grp_sub_cmds in nested_commands:
         grp_desc = '\n'.join([

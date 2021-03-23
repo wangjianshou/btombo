@@ -729,6 +729,62 @@ def add_comp_dist_args(parser):
 ###### Main re-squiggle parser ######
 #####################################
 
+
+def get_pipeline_parser():
+    parser = argparse.ArgumentParser(
+        description='Re-segment raw nanopore signal to match with mapped ' +
+        'portion of a known genomic sequence guided by a k-mer model.',
+        add_help=False)
+    req_args = parser.add_argument_group('Required Arguments')
+    req_args.add_argument(basedir_opt[0], **basedir_opt[1])
+    req_args.add_argument(fasta_pos_opt[0], **fasta_pos_opt[1])
+
+    mod_args = parser.add_argument_group('Model Parameters')
+    mod_args.add_argument(dna_opt[0], **dna_opt[1])
+    mod_args.add_argument(rna_opt[0], **rna_opt[1])
+
+    filt_args = parser.add_argument_group('Read Filtering Argument')
+    filt_args.add_argument(obsfilt_opt[0], **obsfilt_opt[1])
+    filt_args.add_argument(qscr_opt[0], default=0, **qscr_opt[1])
+    filt_args.add_argument(sms_opt[0], **sms_opt[1])
+
+    multi_args = parser.add_argument_group('Multiprocessing Arguments')
+    multi_args.add_argument(proc_opt[0], default=1, **proc_opt[1])
+    multi_args.add_argument(hidthrpp_opt[0], **hidthrpp_opt[1])
+
+    fast5_args = parser.add_argument_group('FAST5 Data Arguments')
+    fast5_args.add_argument(corrgrp_opt[0], **corrgrp_opt[1])
+    fast5_args.add_argument(bcgrp_opt[0], **bcgrp_opt[1])
+    fast5_args.add_argument(bcsubgrps_opt[0], **bcsubgrps_opt[1])
+    fast5_args.add_argument(ovrwrt_opt[0], **ovrwrt_opt[1])
+
+    io_args = parser.add_argument_group('Input/Output Arguments')
+    io_args.add_argument(failed_opt[0], **failed_opt[1])
+    io_args.add_argument(dynerr_opt[0], **dynerr_opt[1])
+
+    hid_args = parser.add_argument_group('Advanced Arguments')
+    hid_args.add_argument(printadv_opt[0], **printadv_opt[1])
+    hid_args.add_argument(hidden_tbmod_opt[0], **hidden_tbmod_opt[1])
+    hid_args.add_argument(hidsegpars_opt[0], **hidsegpars_opt[1])
+    hid_args.add_argument(hidsigapars_opt[0], **hidsigapars_opt[1])
+    hid_args.add_argument(hidsss_opt[0], **hidsss_opt[1])
+    hid_args.add_argument(hidmsi_opt[0], **hidmsi_opt[1])
+    hid_args.add_argument(hidsigrng_opt[0], **hidsigrng_opt[1])
+    hid_args.add_argument(hidseqrng_opt[0], **hidseqrng_opt[1])
+    hid_args.add_argument(hidfitscl_opt[0], **hidfitscl_opt[1])
+    hid_args.add_argument(hidfxdscl_opt[0], **hidfxdscl_opt[1])
+    hid_args.add_argument(hidotlthresh_opt[0], **hidotlthresh_opt[1])
+    hid_args.add_argument(hidskpidx_opt[0], **hidskpidx_opt[1])
+    hid_args.add_argument(hidincldsd_opt[0], **hidincldsd_opt[1])
+    hid_args.add_argument(hidignrlock_opt[0], **hidignrlock_opt[1])
+
+    misc_args, parser = add_misc_args(parser)
+
+    return parser
+
+
+
+
 def get_resquiggle_parser():
     parser = argparse.ArgumentParser(
         description='Re-segment raw nanopore signal to match with mapped ' +
