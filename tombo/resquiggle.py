@@ -1650,11 +1650,11 @@ def _io_and_mappy_thread_worker(
 
         num_processed += 1
         if _DRY_RUN:
-            prep_result = h5py.File(fast5_fn, 'r')
+            prep_result = h5py.File(fast5_fn, 'r')  ###wjs###如果是debug状态，只读模式的h5py.File对象
         else:
             # prep the fast5 file for writing
             prep_result = th.prep_fast5(
-                fast5_fn, corr_grp, overwrite, True, bc_grp, return_fp=True)
+                fast5_fn, corr_grp, overwrite, True, bc_grp, return_fp=True)  ###wjs### return_fp=True返回读写的h5py.File对象
         if isinstance(prep_result, h5py.File):
             fast5_data = prep_result
         else:
@@ -1666,7 +1666,7 @@ def _io_and_mappy_thread_worker(
         try:
             _io_and_map_read(
                 fast5_data, failed_reads_q, bc_subgrps, bc_grp, corr_grp,
-                aligner, seq_samp_type, map_thr_buf, fast5_fn,
+                aligner, seq_samp_type, map_thr_buf, fast5_fn.name,  ###wjs### fast5_fn
                 num_processed, map_conn, outlier_thresh, compute_sd,
                 obs_filter, index_q, q_score_thresh, sig_match_thresh, std_ref,
                 sig_len_rng, seq_len_rng)
