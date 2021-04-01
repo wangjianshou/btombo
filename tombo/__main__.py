@@ -239,6 +239,11 @@ def main(args=None):
         from . import resquiggle
         resquiggle._resquiggle_main(args)
 
+    if args.action_command == 'pipeline':
+        from . import pipeline
+        pipeline.pipeline_main(args)
+
+
     elif args.action_command == 'annotate_raw_with_fastqs':
         from . import _preprocess
         _preprocess.annotate_reads_with_fastq_main(args)
