@@ -123,68 +123,68 @@ _BROKEN_PIPE_ERR = (
 ########## Debug Output ##########
 ##################################
 
-from .resquiggple import _write_params_debug
+from .resquiggle import _write_params_debug
 
-from .resquiggple import _debug_plot_dp
-from .resquiggple import _debug_raw_dp
+from .resquiggle import _debug_plot_dp
+from .resquiggle import _debug_raw_dp
 
-from .resquiggple import _debug_fit
-from .resquiggple import _open_debug_pdf
-from .resquiggple import _close_debug_pdf
+from .resquiggle import _debug_fit
+from .resquiggle import _open_debug_pdf
+from .resquiggle import _close_debug_pdf
 
 
 ############################################
 ########## Raw Signal Re-squiggle ##########
 ############################################
 
-from .resquiggple import raw_forward_pass
-from .resquiggple import raw_traceback
-from .resquiggple import resolve_skipped_bases_with_raw
+from .resquiggle import raw_forward_pass
+from .resquiggle import raw_traceback
+from .resquiggle import resolve_skipped_bases_with_raw
 
 #####################################################
 ########## Static Band Dynamic Programming ##########
 #####################################################
 
-from .resquiggple import find_static_base_assignment
+from .resquiggle import find_static_base_assignment
 
 #######################################################
 ########## Adaptive Band Dynamic Programming ##########
 #######################################################
 
-from .resquiggple import _get_masked_start_fwd_pass
+from .resquiggle import _get_masked_start_fwd_pass
 
-from .resquiggple import find_seq_start_in_events
+from .resquiggle import find_seq_start_in_events
 
-from .resquiggple import find_seq_start_from_clip_basecalls
+from .resquiggle import find_seq_start_from_clip_basecalls
 
-from .resquiggple import get_rel_raw_coords
+from .resquiggle import get_rel_raw_coords
 
-from .resquiggple import find_adaptive_base_assignment
+from .resquiggle import find_adaptive_base_assignment
 
 ######################################
 ########## Re-squiggle Read ##########
 ######################################
 
-from .resquiggple import segment_signal
+from .resquiggle import segment_signal
 
-from .resquiggple import resquiggle_read
+from .resquiggle import resquiggle_read
 
 
 #######################################
 ########## Genomic Alignment ##########
 #######################################
 
-from .resquiggple import get_read_seq
+from .resquiggle import get_read_seq
 
-from .resquiggple import map_read
+from .resquiggle import map_read
 
-from .resquiggple import _io_and_map_read
+from .resquiggle import _io_and_map_read
 
 #########################################
 ########## Re-squiggle Workers ##########
 #########################################
 
-from .resquiggple import _resquiggle_worker
+from .resquiggle import _resquiggle_worker
 
 if _PROFILE_RSQGL:
     _resquiggle_wrapper = _resquiggle_worker
@@ -194,7 +194,7 @@ if _PROFILE_RSQGL:
                         filename='resquiggle_main.prof')
         return
 
-from .resquiggple import _io_and_mappy_thread_worker
+from .resquiggle import _io_and_mappy_thread_worker
 
 if _PROFILE_IO_MAP:
     _io_map_wrapper = _io_and_mappy_thread_worker
@@ -209,25 +209,25 @@ if _PROFILE_IO_MAP:
 ########## Multi-process Handling ##########
 ############################################
 
-from .resquiggple import _get_progress_fail_queues
+from .resquiggle import _get_progress_fail_queues
 
-from .resquiggple import _get_index_queue
+from .resquiggle import _get_index_queue
 
-from .resquiggple import _fill_files_queue
+from .resquiggle import _fill_files_queue
 
-#from .resquiggple import resquiggle_all_reads
+#from .resquiggle import resquiggle_all_reads
 
 
 ###################################
 ########## Main Function ##########
 ###################################
 
-from .resquiggple import _parse_files_and_lock_dirs
+from .resquiggle import _parse_files_and_lock_dirs
 
-#from .resquiggple import _resquiggle_main
+#from .resquiggle import _resquiggle_main
 
 def resquiggle_all_reads(
-        single_fast5_q, aligner, bc_grp, bc_subgrps, corr_grp, std_ref,
+        single_fast5_q, num_reads, aligner, bc_grp, bc_subgrps, corr_grp, std_ref,
         seq_samp_type, outlier_thresh, overwrite, num_ps, threads_per_proc,
         compute_sd, skip_index, rsqgl_params, save_params, sig_match_thresh,
         obs_filter, const_scale, q_score_thresh, skip_seq_scaling,
@@ -266,7 +266,7 @@ def resquiggle_all_reads(
     # failed read and progress queues getter
     main_pf_conn, pf_conn = mp.Pipe()
     pf_p = mp.Process(target=_get_progress_fail_queues,
-                      args=(progress_q, failed_reads_q, pf_conn, len(fast5_fns),
+                      args=(progress_q, failed_reads_q, pf_conn, num_reads,
                             failed_reads_fn, num_update_errors))
     pf_p.daemon = True
     pf_p.start()
@@ -292,7 +292,6 @@ def resquiggle_all_reads(
         map_and_io_ts.append(t)
 
     # wait for all mapping and re-squiggling workers to finish
-    files_p.join()
     for t in map_and_io_ts:
         t.join()
     for rsqgl_p in rsqgl_ps:
@@ -367,21 +366,17 @@ def pipeline_main(args):
     files, fast5s_basedir, lock_fns = _parse_files_and_lock_dirs(args)
 
 
+    ###wjs###
+    num_ps = args.processes
+    threads_per_proc = args.threads_per_process
+    single_fast5_q = queue.Queue(_MAX_QUEUE_SIZE)
+    single_fast5 = [bmk.F5BytesIO(i) for i in files]
+    num_reads = len(single_fast5)
+    single_fast5_t = threading.Thread(target=_fill_files_queue,
+                                      args=(single_fast5_q, single_fast5, num_ps * threads_per_proc))
+    single_fast5_t.start()
 
-    #single_f5_q = mp.Queue(_MAX_QUEUE_SIZE)
-    #single_f5 = (bmk.F5BytesIO(i) for i in files)
-    #single_f5_p = mp.Process(target=_fill_files_queue,
-    #                         args=(single_fast5_q, single_f5, num_ps * threads_per_proc))
-    #single_f5_p.start()
-    
-
-    single_f5_q = queue.Queue(_MAX_QUEUE_SIZE)
-    single_f5 = [bmk.F5BytesIO(i) for i in files]
-    single_f5_t = threading.Thread(target=_fill_files_queue,
-                                   args=(single_fast5_q, single_f5, num_ps * threads_per_proc))
-    single_f5_t.start()
-
-
+    ###wjs###
 
     try:
         seq_samp_type = None
@@ -418,7 +413,7 @@ def pipeline_main(args):
 
 
         resquiggle_all_reads(
-            single_f5_q, aligner, args.basecall_group, args.basecall_subgroups,
+            single_fast5_q, num_reads, aligner, args.basecall_group, args.basecall_subgroups,
             args.corrected_group, std_ref, seq_samp_type, outlier_thresh,
             args.overwrite, args.processes, args.threads_per_process,
             args.include_event_stdev, args.skip_index,
@@ -428,36 +423,11 @@ def pipeline_main(args):
             args.failed_reads_filename, fast5s_basedir,
             args.num_most_common_errors, args.signal_length_range,
             args.sequence_length_range)
-        set_trace()
+
     finally:
         th.clear_tombo_locks(lock_fns)
-
+        #single_fast5_t.join()
     return
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

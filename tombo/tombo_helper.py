@@ -2274,7 +2274,10 @@ def prep_fast5(fast5_fn, corr_grp, overwrite, in_place,
         return ('Not currently implementing new hdf5 file writing',
                 fast5_fn, True)
     # check that the file is writeable before trying to correct
-    if not os.access(fast5_fn, os.W_OK):
+    
+    ###wjs##
+    if isinstance(fast5_fn, str) and (not os.access(fast5_fn, os.W_OK)):
+    ###wjs###
         return 'FAST5 file is not writable', fast5_fn, True
 
     try:
