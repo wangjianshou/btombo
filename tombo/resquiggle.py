@@ -1686,11 +1686,10 @@ def _io_and_mappy_thread_worker(
         proc_update_interval = update_progress(
             num_processed, proc_update_interval)
 
-    ###wjs###
-    from os import path
-    with open(path.join('result/'+fast5_fn.name), 'wb') as f:
-        f.write(fast5_fn.getvalue())
-    ###wjs###
+        ###wjs###
+        with open(fast5_fn.name, 'wb') as f:
+            f.write(fast5_fn.getvalue())
+        ###wjs###
 
     return
 
