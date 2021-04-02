@@ -370,8 +370,8 @@ def pipeline_main(args):
     num_ps = args.processes
     threads_per_proc = args.threads_per_process
     single_fast5_q = queue.Queue(_MAX_QUEUE_SIZE)
-    single_fast5 = [bmk.F5BytesIO(i) for i in files]
-    num_reads = len(single_fast5)
+    single_fast5 = (bmk.F5BytesIO(i) for i in files)
+    num_reads = len(files)
     single_fast5_t = threading.Thread(target=_fill_files_queue,
                                       args=(single_fast5_q, single_fast5, num_ps * threads_per_proc))
     single_fast5_t.start()
