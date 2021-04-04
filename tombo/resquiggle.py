@@ -1689,6 +1689,7 @@ def _io_and_mappy_thread_worker(
         ###wjs###
         with open(fast5_fn.name, 'wb') as f:
             f.write(fast5_fn.getvalue())
+            fast5_fn.close()
         ###wjs###
 
     return
