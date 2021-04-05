@@ -2,14 +2,14 @@ import io
 from os import path
 
 class F5BytesIO(io._io.BytesIO):
-  def __init__(self, name='', initial_bytes=None):
-    assert isinstance(name, str), "name must be string"
+  def __init__(self, name='', is_new=False, initial_bytes=None):
+    #assert isinstance(name, str), "name must be string"
     self.name = name
-    if path.exists(name):
+    if is_new:
+      super(__class__, self).__init__(initial_bytes)
+    else:
       with io.open(name, 'rb') as f:
         super(__class__, self).__init__(initial_bytes=f.read())
-    else:
-      super(__class__, self).__init__(initial_bytes)
   def __add__(self, value):
     if isinstance(value, str):
       return self.name + value
@@ -20,7 +20,6 @@ class F5BytesIO(io._io.BytesIO):
       return value + self.name
     elif isinstance(value, __class__):
       return value.name + self.name
-
 
 
 def getF5fromName(names, f5s):
