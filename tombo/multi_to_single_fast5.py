@@ -1,13 +1,15 @@
 from argparse import ArgumentParser
 from multiprocessing import Pool
+import multiprocessing as mp
+import threading
 import logging
 import os
 from ont_fast5_api import __version__
 from ont_fast5_api.conversion_tools.conversion_utils import get_fast5_file_list, get_progress_bar
 from ont_fast5_api.fast5_file import EmptyFast5, Fast5FileTypeError
 from ont_fast5_api.fast5_interface import check_file_type, MULTI_READ
-from .multi_fast5 import MultiFast5File ###wjs
-from .bmk import F5BytesIO  ###wjs###
+from tombo.multi_fast5 import MultiFast5File ###wjs
+from tombo.bmk import F5BytesIO  ###wjs###
 
 import io
 
@@ -20,7 +22,7 @@ def batch_convert_multi_files_to_single(input_path, output_folder, threads, recu
     pool = Pool(threads)
     file_list = get_fast5_file_list(input_path, recursive, follow_symlinks=follow_symlinks)
     pbar = get_progress_bar(len(file_list))
-
+    single_fast5_q = mp.Manager().Queue(10000)
     def update(result):
         input_file = result[0]
         with open(os.path.join(output_folder, "filename_mapping.txt"), 'a') as output_table:
@@ -35,25 +37,48 @@ def batch_convert_multi_files_to_single(input_path, output_folder, threads, recu
     for batch_num, filename in enumerate(file_list):
         results_array.append(pool.apply_async(convert_multi_to_single,
                                               args=(filename, output_folder,
-                                                    str(batch_num)),
+                                                    str(batch_num), single_fast5_q),
                                               callback=update))
 
     pool.close()
+
+    write_threads = []
+    for i in range(threads_per_proc):
+        t = threading.Thread(target=single_fast5_write, args=(single_fast5_q, ))
+        t.start()
+        write_threads.append(t)
+
     pool.join()
+
+    for i in range(threads_per_proc):
+        single_fast5_q.put(None)
+    for t in write_threads:
+        t.join()
+
     pbar.finish()
 
 
-def convert_multi_to_single(input_file, output_folder, subfolder):
+def single_fast5_write(single_fast5_q):
+    while True:
+        single_fast5 = single_fast5_q.get()
+        if single_fast5 is None:
+          break
+        with io.open(single_fast5.name, 'wb') as f:
+            f.write(single_fast5.getvalue())
+        single_fast5.close()
+
+
+def convert_multi_to_single(input_file, output_folder, subfolder, single_fast5_q):
     output_files = ()
     try:
-        output_files = try_multi_to_single_conversion(input_file, output_folder, subfolder)
+        output_files = try_multi_to_single_conversion(input_file, output_folder, subfolder, single_fast5_q)
     except Exception as e:
         logger.error("{}\n\tFailed to copy files from: {}"
                      "".format(e, input_file), exc_info=exc_info)
     return input_file, output_files
 
 
-def try_multi_to_single_conversion(input_file, output_folder, subfolder):
+def try_multi_to_single_conversion(input_file, output_folder, subfolder, single_fast5_q):
     output_files = []
     with MultiFast5File(input_file, 'r') as multi_f5:
         file_type = check_file_type(multi_f5)
@@ -71,7 +96,7 @@ def try_multi_to_single_conversion(input_file, output_folder, subfolder):
     return output_files
 
 
-def create_single_f5(output_file, read):
+def create_single_f5(output_file, read, single_fast5_q):
     if not os.path.exists(os.path.dirname(output_file)):
         os.makedirs(os.path.dirname(output_file))
     output_file = F5BytesIO(output_file, True)  ###wjs###
@@ -87,9 +112,10 @@ def create_single_f5(output_file, read):
             else:
                 single_f5.handle.copy(read.handle[group], group)
     ###wjs###
-    with io.open(output_file.name, 'wb') as f:
-        f.write(output_file.getvalue())
-    output_file.close()
+    single_fast5_q.put(output_file)
+    #with io.open(output_file.name, 'wb') as f:
+    #    f.write(output_file.getvalue())
+    #output_file.close()
     ###wjs###
 
 
@@ -103,7 +129,9 @@ def main():
                         help="Search recursively through folders for MultiRead fast5 files")
     parser.add_argument('--ignore_symlinks', action='store_true',
                         help="Ignore symlinks when searching recursively for fast5 files")
-    parser.add_argument('-t', '--threads', type=int, default=1, required=False,
+    parser.add_argument('-p', '--process', type=int, default=1, required=False,
+                        help="Number of threads to use")
+    parser.add_argument('-t', '--threads_per_proc', type=int, default=6, required=False,
                         help="Number of threads to use")
     parser.add_argument('-v', '--version', action='version', version=__version__)
     args = parser.parse_args()
