@@ -1,6 +1,7 @@
 import io
 from tombo import tombo_helper as th
 from tombo._preprocess import _prep_fast5_for_fastq # 获取single_fast5的read_id 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 VERBOSE = False
 
@@ -25,14 +26,14 @@ _WARN_PREFIX = '****** WARNING ****** '
 
 
 
-def get_seq_record(fastq_fns):
+def get_seq_records(fastq_fns):
     fastq_recs = {}
     for fastq_fn in fastq_fns:
         with io.open(fastq_fn) as fastq_fp:
             tmp = [i for i in fastq_fp]
         if len(tmp) % 4 != 0: break
         tmp = {tmp[4*i].split()[0].split('_')[0][1:]:tmp[4*i:4*i+4]
-               for i in range(len(tmp)//4)})
+               for i in range(len(tmp)//4)}
         for k in tmp:
             if not (tmp[k][0].startswith('@') and tmp[k][2].startswith('+')):
                 th.warning_message(
@@ -41,8 +42,33 @@ def get_seq_record(fastq_fns):
                         'encountering an invalid record. The rest of ' +
                         'this file will not be processed.')
         fastq_recs.update(tmp)
-
     return fastq_recs
+
+
+def get_seq_worker(fastq_fn):
+    with io.open(fastq_fn) as fastq_fp:
+        tmp = [i for i in fastq_fp]
+    if len(tmp) % 4 != 0: 
+        raise Exception('error in fastq file')
+    tmp = {tmp[4*i].split()[0].split('_')[0][1:]:tmp[4*i:4*i+4]
+                for i in range(len(tmp)//4)}
+    for k in tmp:
+        if not (tmp[k][0].startswith('@') and tmp[k][2].startswith('+')):
+            th.warning_message(
+                    'Successfully parsed ' + unicode(n_recs) +
+                    ' FASTQ records from ' + fastq_fn + ' before ' +
+                    'encountering an invalid record. The rest of ' +
+                    'this file will not be processed.')
+    return tmp
+
+def get_seq_recs_concurrent(fastq_fns, n=6):
+    fastq_recs = {}
+    exector = ThreadPoolExecutor(max_workers=n)
+    all_tasks = [exector.submit(get_seq_worker, fastq_fn) for fastq_fn in fastq_fns]
+    for future in as_completed(all_tasks):
+        fastq_recs.update(future.result())
+    return fastq_recs
+
 
 
 def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,  
