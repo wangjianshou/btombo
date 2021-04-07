@@ -88,7 +88,7 @@ def try_multi_to_single_conversion(input_file, output_folder, subfolder, single_
         for read in multi_f5.get_reads():
             try:
                 output_file = os.path.join(output_folder, subfolder, "{}.fast5".format(read.read_id))
-                create_single_f5(output_file, read)
+                create_single_f5(output_file, read, single_fast5_q)
                 output_files.append(os.path.basename(output_file))
             except Exception as e:
                 logger.error("{}\n\tFailed to copy read '{}' from {}"
@@ -136,7 +136,7 @@ def main():
     parser.add_argument('-v', '--version', action='version', version=__version__)
     args = parser.parse_args()
 
-    batch_convert_multi_files_to_single(args.input_path, args.save_path, args.threads,
+    batch_convert_multi_files_to_single(args.input_path, args.save_path, args.process, args.threads_per_proc,
                                         args.recursive, follow_symlinks=not args.ignore_symlinks)
 
 
