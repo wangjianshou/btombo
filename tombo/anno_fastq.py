@@ -1,6 +1,7 @@
 import io
 from tombo import tombo_helper as th
-from tombo._preprocess import _prep_fast5_for_fastq # 获取single_fast5的read_id 
+from tombo._preprocess import _prep_fast5_for_fastq # 获取single_fast5的read_id,创建注释slot 
+from tombo._preprocess import _get_ann_queues
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 VERBOSE = False
@@ -25,7 +26,7 @@ _WARN_CODES_PREP = (_WARN_OVRWRT_VAL, _WARN_UNIQ_VAL)
 _WARN_PREFIX = '****** WARNING ****** '
 
 
-
+#单线程版，弃用
 def get_seq_records(fastq_fns):
     fastq_recs = {}
     for fastq_fn in fastq_fns:
@@ -45,6 +46,17 @@ def get_seq_records(fastq_fns):
     return fastq_recs
 
 
+# 多线程版
+def get_seq_recs_concurrent(fastq_fns, n=6):
+    #fastq_recs = {}
+    exector = ThreadPoolExecutor(max_workers=n)
+    all_tasks = [exector.submit(get_seq_worker, fastq_fn) for fastq_fn in fastq_fns]
+    return [future.result() for future in as_completed(all_tasks)]
+    #for future in as_completed(all_tasks):
+    #    fastq_recs.update(future.result())
+    #return fastq_recs
+
+
 def get_seq_worker(fastq_fn):
     with io.open(fastq_fn) as fastq_fp:
         tmp = [i for i in fastq_fp]
@@ -61,14 +73,6 @@ def get_seq_worker(fastq_fn):
                     'this file will not be processed.')
     return tmp
 
-def get_seq_recs_concurrent(fastq_fns, n=6):
-    fastq_recs = {}
-    exector = ThreadPoolExecutor(max_workers=n)
-    all_tasks = [exector.submit(get_seq_worker, fastq_fn) for fastq_fn in fastq_fns]
-    for future in as_completed(all_tasks):
-        fastq_recs.update(future.result())
-    return fastq_recs
-
 
 
 def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,  
@@ -81,20 +85,20 @@ def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,
             break
         try:
             with h5py.File(single_fast5, 'r+') as fast5_data:
-                if not fq_slot_prepped:
-                    try:
-                        file_parsed_id = _prep_fast5_for_fastq(
-                            fast5_data, bc_grp_name, bc_subgrp_name, overwrite)
-                    except th.TomboError:
-                        if not been_warned[_WARN_OVRWRT_VAL]:
-                            been_warned[_WARN_OVRWRT_VAL] = True
-                            warn_q.put(_WARN_OVRWRT_VAL)
-                        continue
-                    if file_parsed_id not in fastq_recs:
-                        if not been_warned[_WARN_MISMATCH_VAL]:
-                            been_warned[_WARN_MISMATCH_VAL] = True
-                            warn_q.put(_WARN_MISMATCH_VAL)
-                        continue
+                #if not fq_slot_prepped:
+                try:
+                    file_parsed_id = _prep_fast5_for_fastq(
+                        fast5_data, bc_grp_name, bc_subgrp_name, overwrite)
+                except th.TomboError:
+                    if not been_warned[_WARN_OVRWRT_VAL]:
+                        been_warned[_WARN_OVRWRT_VAL] = True
+                        warn_q.put(_WARN_OVRWRT_VAL)
+                    continue
+                if file_parsed_id not in fastq_recs:
+                    if not been_warned[_WARN_MISMATCH_VAL]:
+                        been_warned[_WARN_MISMATCH_VAL] = True
+                        warn_q.put(_WARN_MISMATCH_VAL)
+                    continue
                 bc_slot = fast5_data[fastq_slot]
                 # add sequence to fastq slot
                 bc_slot.create_dataset(
@@ -127,7 +131,7 @@ def annotate_reads_with_fastq_main(args):
     ann_args = (single_fast5_q, fastq_recs, fastq_slot,
                 prog_q, warn_q, bc_grp_name, bc_subgrp_name, overwrite)
     ann_ps = []
-    for p_id in range(num_processes):
+    for p_id in range(args.num_processes):
         ann_p = Process(target=_annotate_with_fastqs_worker, args=ann_args)
         ann_p.daemon = True
         ann_p.start()
