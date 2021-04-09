@@ -1,8 +1,17 @@
+import sys
 import io
+import queue
+import h5py
+from multiprocessing import Process, Queue, Pipe
+from time import sleep
+from tqdm import tqdm
 from tombo import tombo_helper as th
 from tombo._preprocess import _prep_fast5_for_fastq # 获取single_fast5的read_id,创建注释slot 
-from tombo._preprocess import _get_ann_queues
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pudb.remote import set_trace
+
+if sys.version_info[0] > 2:
+        unicode = str
 
 VERBOSE = False
 
@@ -74,6 +83,86 @@ def get_seq_worker(fastq_fn):
     return tmp
 
 
+def _get_ann_queues(prog_q, warn_q, wp_conn):
+    set_trace()
+    if VERBOSE: bar = tqdm(smoothing=0)
+    been_warned = dict((warn_code, False) for warn_code in _WARN_CODES)
+
+    def update_warn(warn_val):
+        if warn_val == _WARN_ID_VAL:
+            if VERBOSE and not been_warned[_WARN_ID_VAL]:
+                bar.write(
+                    _WARN_PREFIX + 'Some FASTQ records contain read ' +
+                    'identifiers not found in any FAST5 files or ' +
+                    'sequencing summary files.',
+                    file=sys.stderr)
+            been_warned[_WARN_ID_VAL] = True
+        elif warn_val == _WARN_IO_VAL:
+            if VERBOSE and not been_warned[_WARN_IO_VAL]:
+                bar.write(
+                    _WARN_PREFIX + 'Some read files could not be accessed.',
+                    file=sys.stderr)
+            been_warned[_WARN_IO_VAL] = True
+        elif warn_val == _WARN_MISMATCH_VAL:
+            if VERBOSE and not been_warned[_WARN_MISMATCH_VAL]:
+                bar.write(
+                    _WARN_PREFIX + 'Read ID(s) found in sequencing summary ' +
+                    'and FAST5 file are discordant. Skipping such reads.',
+                    file=sys.stderr)
+            been_warned[_WARN_MISMATCH_VAL] = True
+        elif warn_val == _WARN_OVRWRT_VAL:
+            if VERBOSE and not been_warned[_WARN_OVRWRT_VAL]:
+                bar.write(
+                    _WARN_PREFIX + 'Basecalls exsit in specified slot for ' +
+                    'some reads. Set --overwrite option to overwrite these ' +
+                    'basecalls.', file=sys.stderr)
+            been_warned[_WARN_OVRWRT_VAL] = True
+        else:
+            if VERBOSE:
+                bar.write('{}Invalid warning code encountered: {}'.format(
+                    _WARN_PREFIX, warn_val), file=sys.stderr)
+
+        return
+
+    total_added_seqs = 0
+    while True:
+        try:
+            iter_added = prog_q.get(block=False)
+            total_added_seqs += iter_added
+            if VERBOSE: bar.update(iter_added)
+        except queue.Empty:
+            try:
+                warn_val = warn_q.get(block=False)
+                update_warn(warn_val)
+            except queue.Empty:
+                sleep(0.1)
+                # check if main thread has finished with all fastq records
+                if wp_conn.poll():
+                    break
+
+    # collect all remaining warn and progress values
+    while not prog_q.empty():
+        iter_added = prog_q.get(block=False)
+        total_added_seqs += iter_added
+        if VERBOSE: bar.update(iter_added)
+    while not warn_q.empty():
+        warn_val = warn_q.get(block=False)
+        update_warn(warn_val)
+    if VERBOSE:
+        bar.close()
+        th.status_message('Added sequences to a total of ' +
+                          str(total_added_seqs) + ' reads.')
+        if total_added_seqs < num_read_ids:
+            th.warning_message(
+                'Not all read ids from FAST5s or sequencing summary files ' +
+                'were found in FASTQs.\n\t\tThis can result from reads that ' +
+                'failed basecalling or if full sets of FAST5s/sequence ' +
+                'summaries are not processed with full sets of FASTQs.')
+
+    return
+
+
+
 
 def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,  
             prog_q, warn_q, bc_grp_name, bc_subgrp_name, overwrite): 
@@ -81,6 +170,7 @@ def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,
     num_recs_proc = 0
     while True:
         single_fast5 = single_fast5_q.get()
+        #set_trace()
         if single_fast5 is None:
             break
         try:
@@ -102,11 +192,15 @@ def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,
                 bc_slot = fast5_data[fastq_slot]
                 # add sequence to fastq slot
                 bc_slot.create_dataset(
-                    'Fastq', data=''.join(fastq_rec),
+                    'Fastq', data='\n'.join(fastq_recs[file_parsed_id]),
                     dtype=h5py.special_dtype(vlen=unicode))
                 num_recs_proc += 1
                 if num_recs_proc % _PROC_UPDATE_INTERVAL == 0:
                     prog_q.put(_PROC_UPDATE_INTERVAL)
+            with io.open(single_fast5.name, 'wb') as f:
+                f.write(single_fast5.getvalue())
+            single_fast5.close()
+
         except:
             if not been_warned[_WARN_IO_VAL]:
                 been_warned[_WARN_IO_VAL] = True
@@ -120,18 +214,21 @@ def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,
 
 
 
-def annotate_reads_with_fastq_main(args):
-    fastq_slot = '/'.join(('/Analyses', args.basecall_group,
-                           args.basecall_subgroup))
+def annotate_reads_with_fastq_main(single_fast5_q, anno_fast5_q, fastq_fns, basecall_group,
+                                   basecall_subgroup, overwrite, processes):
+    fastq_slot = '/'.join(('/Analyses', basecall_group,
+                           basecall_subgroup))
     if VERBOSE: th.status_message('Annotating FAST5s with sequence from FASTQs.')
     prog_q = Queue()
     warn_q = Queue()
-
+    fastq_recs = {}
+    for i in get_seq_recs_concurrent(fastq_fns):
+        fastq_recs.update(i)
     # open fast5 annotation processes
     ann_args = (single_fast5_q, fastq_recs, fastq_slot,
                 prog_q, warn_q, bc_grp_name, bc_subgrp_name, overwrite)
     ann_ps = []
-    for p_id in range(args.num_processes):
+    for p_id in range(processes):
         ann_p = Process(target=_annotate_with_fastqs_worker, args=ann_args)
         ann_p.daemon = True
         ann_p.start()
