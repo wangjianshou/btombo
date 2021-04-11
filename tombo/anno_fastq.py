@@ -8,7 +8,7 @@ from tqdm import tqdm
 from tombo import tombo_helper as th
 from tombo._preprocess import _prep_fast5_for_fastq # 获取single_fast5的read_id,创建注释slot 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pudb.remote import set_trace
+#from pudb.remote import set_trace
 
 if sys.version_info[0] > 2:
         unicode = str
