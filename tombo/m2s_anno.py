@@ -179,7 +179,7 @@ def main():
     parser.add_argument('--basecall-group', default='Basecall_1D_000', 
                         help="FAST5 group obtain original basecalls (under Analyses group)."+
                              'Default: %(default)s')
-    parser.add_argument('--basecall-subgroup', default='--basecall-subgroup', 
+    parser.add_argument('--basecall-subgroup', default='BaseCalled_template', 
                         help="FAST5 subgroup (under /Analyses/[--basecall-group]/) under which" +
                              'to store basecalls from FASTQs. Default: %(default)s')
     parser.add_argument('--overwrite', default=False, action='store_true', 

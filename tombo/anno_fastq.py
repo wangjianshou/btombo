@@ -14,6 +14,7 @@ if sys.version_info[0] > 2:
         unicode = str
 
 VERBOSE = False
+#VERBOSE = True
 
 _MAX_QUEUE_SIZE = 1000
 _ITER_QUEUE_LIMIT = 1000
@@ -84,7 +85,7 @@ def get_seq_worker(fastq_fn):
 
 
 def _get_ann_queues(prog_q, warn_q, wp_conn):
-    set_trace()
+    #set_trace()
     if VERBOSE: bar = tqdm(smoothing=0)
     been_warned = dict((warn_code, False) for warn_code in _WARN_CODES)
 
@@ -192,7 +193,7 @@ def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,
                 bc_slot = fast5_data[fastq_slot]
                 # add sequence to fastq slot
                 bc_slot.create_dataset(
-                    'Fastq', data='\n'.join(fastq_recs[file_parsed_id]),
+                    'Fastq', data=''.join(fastq_recs[file_parsed_id]),
                     dtype=h5py.special_dtype(vlen=unicode))
                 num_recs_proc += 1
                 if num_recs_proc % _PROC_UPDATE_INTERVAL == 0:
