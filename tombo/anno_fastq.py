@@ -8,7 +8,7 @@ from tqdm import tqdm
 from tombo import tombo_helper as th
 from tombo._preprocess import _prep_fast5_for_fastq # 获取single_fast5的read_id,创建注释slot 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-#from pudb.remote import set_trace
+from pudb.remote import set_trace
 
 if sys.version_info[0] > 2:
         unicode = str
@@ -165,7 +165,7 @@ def _get_ann_queues(prog_q, warn_q, wp_conn):
 
 
 
-def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,  
+def _annotate_with_fastqs_worker(single_fast5_q, anno_fast5_q, fastq_recs, fastq_slot,  
             prog_q, warn_q, bc_grp_name, bc_subgrp_name, overwrite): 
     been_warned = dict((warn_code, False) for warn_code in _WARN_CODES)
     num_recs_proc = 0
@@ -198,9 +198,10 @@ def _annotate_with_fastqs_worker(single_fast5_q, fastq_recs, fastq_slot,
                 num_recs_proc += 1
                 if num_recs_proc % _PROC_UPDATE_INTERVAL == 0:
                     prog_q.put(_PROC_UPDATE_INTERVAL)
-            with io.open(single_fast5.name, 'wb') as f:
-                f.write(single_fast5.getvalue())
-            single_fast5.close()
+            #with io.open(single_fast5.name, 'wb') as f:
+            #    f.write(single_fast5.getvalue())
+            #single_fast5.close()
+            anno_fast5_q.put(single_fast5)
 
         except:
             if not been_warned[_WARN_IO_VAL]:

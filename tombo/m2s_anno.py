@@ -53,6 +53,7 @@ def batch_convert_multi_files_to_single(input_path, output_folder, processes, th
     fastq_slot = '/'.join(('/Analyses', basecall_group,
                            basecall_subgroup))
     if VERBOSE: th.status_message('Annotating FAST5s with sequence from FASTQs.')
+    anno_fast5_q = mp.Queue(20000)
     prog_q = mp.Queue()
     warn_q = mp.Queue()
     fastq_recs = {}
@@ -60,9 +61,11 @@ def batch_convert_multi_files_to_single(input_path, output_folder, processes, th
         fastq_recs.update(i)
 
     # open fast5 annotation processes
-    ann_args = (single_fast5_q, fastq_recs, fastq_slot, prog_q, warn_q,
+    ann_args = (single_fast5_q, anno_fast5_q, fastq_recs, fastq_slot, prog_q, warn_q,
                 basecall_group, basecall_subgroup, overwrite)
     ann_ps = []
+
+    #for p_id in range(threads_per_proc):
     for p_id in range(processes):
         ann_p = Process(target=_annotate_with_fastqs_worker, args=ann_args)
         #ann_p = threading.Thread(target=_annotate_with_fastqs_worker, args=ann_args)
@@ -76,21 +79,22 @@ def batch_convert_multi_files_to_single(input_path, output_folder, processes, th
     warn_prog_p.daemon = True
     warn_prog_p.start()
 
-    '''
     write_threads = []
     for i in range(threads_per_proc):
-        t = threading.Thread(target=single_fast5_write, args=(single_fast5_q, ))
+        t = threading.Thread(target=single_fast5_write, args=(anno_fast5_q, ))
         t.start()
         write_threads.append(t)
-    '''
+
     pool.join()
 
-    for i in range(threads_per_proc):
+    for i in range(processes):
         single_fast5_q.put(None)
-    #for t in write_threads:
-    #    t.join()
     for ann_p in ann_ps:
         ann_p.join()
+    for i in range(threads_per_proc):
+        anno_fast5_q.put(None)
+    for t in write_threads:
+        t.join()
     # send signal to warn/progress queue that all other processes are complete
     main_wp_conn.send(True)
     warn_prog_p.join()
