@@ -54,7 +54,7 @@ for e in ext_modules:
     e.cython_directives = {"embedsignature": True}
 
 setup(
-    name = "ont-tombo",
+    name = "bmk-ont-tombo",
     version = __version__,
     packages = ["tombo"],
     install_requires = ['h5py==3.1.0', 'numpy=1.19.5', 'scipy=1.5.3', 'cython==0.29.22',
