@@ -57,7 +57,7 @@ setup(
     name = "bmk-ont-tombo",
     version = __version__,
     packages = ["tombo"],
-    install_requires = ['h5py==3.1.0', 'numpy=1.19.5', 'scipy=1.5.3', 'cython==0.29.22',
+    install_requires = ['h5py==3.1.0', 'numpy==1.19.5', 'scipy==1.5.3', 'cython==0.29.22',
                         'setuptools >= 18.0', 'mappy >= 2.10', 'future', 'tqdm'],
     extras_require={'full':extras_require},
 

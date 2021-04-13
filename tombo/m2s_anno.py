@@ -27,7 +27,10 @@ exc_info = False
 def batch_convert_multi_files_to_single(input_path, output_folder, processes, threads_per_proc,
         fastq_fns, basecall_group, basecall_subgroup, overwrite, recursive, follow_symlinks):
     pool = Pool(processes)
-    file_list = get_fast5_file_list(input_path, recursive, follow_symlinks=follow_symlinks)
+    #file_list = get_fast5_file_list(input_path, recursive, follow_symlinks=follow_symlinks)
+    file_list = []
+    for i in input_path:
+        file_list.extend(get_fast5_file_list(i, recursive, follow_symlinks=follow_symlinks))
     pbar = get_progress_bar(len(file_list))
     single_fast5_q = mp.Manager().Queue(20000)
     def update(result):
@@ -165,7 +168,7 @@ def create_single_f5(output_file, read, single_fast5_q):
 
 def main():
     parser = ArgumentParser("")
-    parser.add_argument('-i', '--input_path', required=True,
+    parser.add_argument('-i', '--input_path', required=True, nargs='+',
                         help="MultiRead fast5 file or path to directory of MultiRead files")
     parser.add_argument('-s', '--save_path', required=True,
                         help="Folder to output SingleRead fast5 files to")
