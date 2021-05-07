@@ -2,6 +2,8 @@ from __future__ import division, unicode_literals, absolute_import
 
 from builtins import int, range, dict, map, zip, object
 
+from tombo.bmk import F5BytesIO
+
 import os
 import io
 import re
@@ -4196,6 +4198,9 @@ def compute_reg_stats(
         zip(*alt_refs))[0]
     reg_read_stats, stat_locs, reg_ids = [
         dict((stat_name, []) for stat_name in stat_names) for _ in range(3)]
+
+    reg_data.reads=[i._replace(fn=F5BytesIO(i.fn)) for i in reg_data.reads]
+
     for r_data in reg_data.reads:
         try:
             if stat_type == SAMP_COMP_TXT:
